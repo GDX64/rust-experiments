@@ -93,8 +93,8 @@ mod test {
         let range = range_sink.stream().hold((0, 2));
         let make_scale = Signal::new(|_: Scale2DRange| TestScale2D {});
         let s = make(drawables, range, make_scale);
-        println!("{:?}", s.sample().values);
+        assert_eq!(vec![1.0, 2.0], s.sample().values);
         range_sink.send((1, 3));
-        println!("{:?}", s.sample().values)
+        assert_eq!(vec![2.0, 3.0], s.sample().values);
     }
 }
