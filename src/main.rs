@@ -42,6 +42,8 @@ where
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use carboxyl::{Signal, Sink};
 
     use crate::{make, Drawable, Scale2D, Scale2DRange};
@@ -61,7 +63,7 @@ mod test {
 
     #[derive(Clone)]
     struct TestDrawable {
-        values: Vec<f64>,
+        values: Arc<Vec<f64>>,
     }
 
     impl Drawable for TestDrawable {
@@ -74,12 +76,16 @@ mod test {
 
         fn range(&self, r: (usize, usize)) -> Self {
             let v = self.values[r.0..r.1].to_vec();
-            TestDrawable { values: v }
+            TestDrawable {
+                values: Arc::new(v),
+            }
         }
 
         fn scale(&self, scale: &dyn Scale2D) -> Self {
             let v = self.values.iter().map(|&value| scale.y(value)).collect();
-            TestDrawable { values: v }
+            TestDrawable {
+                values: Arc::new(v),
+            }
         }
     }
 
@@ -87,14 +93,14 @@ mod test {
     fn test_make() {
         let d_sink = Sink::new();
         let drawables = d_sink.stream().hold(TestDrawable {
-            values: vec![1.2, 2.3, 3.1],
+            values: Arc::new(vec![1.2, 2.3, 3.1]),
         });
         let range_sink = Sink::new();
         let range = range_sink.stream().hold((0, 2));
         let make_scale = Signal::new(|_: Scale2DRange| TestScale2D {});
         let s = make(drawables, range, make_scale);
-        assert_eq!(vec![1.0, 2.0], s.sample().values);
+        assert_eq!(vec![1.0, 2.0], *s.sample().values);
         range_sink.send((1, 3));
-        assert_eq!(vec![2.0, 3.0], s.sample().values);
+        assert_eq!(vec![2.0, 3.0], *s.sample().values);
     }
 }
