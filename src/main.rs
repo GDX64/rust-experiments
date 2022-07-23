@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 pub fn main() {}
 
 fn sin(x: f64) -> (f64, f64) {
@@ -16,10 +18,11 @@ fn sin_2x(x: f64) -> (f64, f64) {
 }
 
 ///sin(2*x) = cos(2*x)*2 = f'(g(x))*g'(x)
-fn c_diff<F1, F2>(f: F1, g: F2) -> impl Fn(f64) -> (f64, f64)
+fn c_diff<F1, F2, D, V>(f: F1, g: F2) -> impl Fn(V) -> (V, D)
 where
-    F1: Fn(f64) -> (f64, f64),
-    F2: Fn(f64) -> (f64, f64),
+    D: Mul<Output = D>,
+    F1: Fn(V) -> (V, D),
+    F2: Fn(V) -> (V, D),
 {
     move |x| {
         let (g_x, gp_x) = g(x);
@@ -31,6 +34,8 @@ where
 
 #[cfg(test)]
 mod test {
+    use nalgebra::SMatrix;
+
     use crate::{c_diff, scale, sin, sin_2x};
 
     #[test]
@@ -48,5 +53,9 @@ mod test {
         let res = f(x);
         assert_eq!(res.0, (2.0 * x).sin(), "assert f value");
         assert_eq!(res.1, (2.0 * x).cos() * 2.0, "assert derivative");
+    }
+
+    fn test_mat() {
+        let m = SMatrix::<f64, 2, 2>::default();
     }
 }
