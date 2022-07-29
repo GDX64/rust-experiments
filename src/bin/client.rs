@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use std::error::Error;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
@@ -43,7 +44,7 @@ async fn main() {
             resp: one_sender,
         };
         tx2.send(cmd).await.unwrap();
-        let answer = one_receiver.await;
+        let answer = flat_result(one_receiver.await);
         println!("Got = {:?}", answer);
     });
 
@@ -73,4 +74,15 @@ async fn main() {
     t1.await.unwrap();
     t2.await.unwrap();
     manager.await.unwrap();
+}
+
+type BoxDyn = Box<dyn Error + Send + Sync>;
+fn flat_result<U, T, G>(r: Result<Result<U, G>, T>) -> Result<U, BoxDyn>
+where
+    T: Into<BoxDyn>,
+    G: Into<BoxDyn>,
+{
+    r.map(|inner| inner.map_err::<BoxDyn, _>(|err| err.into()))
+        .map_err::<BoxDyn, _>(|err| err.into())
+        .and_then(|r| r)
 }
