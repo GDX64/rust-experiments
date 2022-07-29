@@ -7,4 +7,6 @@ version = "0.1.0"
 
 [dependencies]
 carboxyl = "0.2.1" 
+mini-redis = "0.4" 
 nalgebra = "*" # replace * by the latest version of the crate.
+tokio = {version = "1", features = ["full"]}

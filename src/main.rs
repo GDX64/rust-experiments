@@ -1,61 +1,53 @@
-use std::ops::Mul;
+use mini_redis::{Connection, Frame};
+use tokio::net::{TcpListener, TcpStream};
 
-pub fn main() {}
+#[tokio::main]
+async fn main() {
+    // Bind the listener to the address
+    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
 
-fn sin(x: f64) -> (f64, f64) {
-    (x.sin(), x.cos())
-}
-
-fn scale(x: f64, val: f64) -> (f64, f64) {
-    (x * val, val)
-}
-
-fn sin_2x(x: f64) -> (f64, f64) {
-    let (g_x, gp_x) = scale(x, 2.0);
-    let (f_x, fp_g_x) = sin(g_x);
-    let diff = fp_g_x * gp_x;
-    (f_x, diff)
-}
-
-///sin(2*x) = cos(2*x)*2 = f'(g(x))*g'(x)
-fn c_diff<F1, F2, D, V>(f: F1, g: F2) -> impl Fn(V) -> (V, D)
-where
-    D: Mul<Output = D>,
-    F1: Fn(V) -> (V, D),
-    F2: Fn(V) -> (V, D),
-{
-    move |x| {
-        let (g_x, gp_x) = g(x);
-        let (f_x, fp_g_x) = f(g_x);
-        let diff = fp_g_x * gp_x;
-        (f_x, diff)
+    loop {
+        // The second item contains the IP and port of the new connection.
+        let (socket, _) = listener.accept().await.unwrap();
+        tokio::spawn(async {
+            process(socket).await;
+        });
     }
 }
 
-#[cfg(test)]
-mod test {
-    use nalgebra::SMatrix;
+async fn process(socket: TcpStream) {
+    use mini_redis::Command::{self, Get, Set};
+    use std::collections::HashMap;
 
-    use crate::{c_diff, scale, sin, sin_2x};
+    // A hashmap is used to store data
+    let mut db = HashMap::new();
 
-    #[test]
-    fn test_diff() {
-        let x = 0.56;
-        let res = sin_2x(x);
-        assert_eq!(res.0, (2.0 * x).sin());
-        assert_eq!(res.1, (2.0 * x).cos() * 2.0);
-    }
+    // Connection, provided by `mini-redis`, handles parsing frames from
+    // the socket
+    let mut connection = Connection::new(socket);
 
-    #[test]
-    fn test_c_diff() {
-        let f = c_diff(sin, |x| scale(x, 2.0));
-        let x = 0.0;
-        let res = f(x);
-        assert_eq!(res.0, (2.0 * x).sin(), "assert f value");
-        assert_eq!(res.1, (2.0 * x).cos() * 2.0, "assert derivative");
-    }
+    // Use `read_frame` to receive a command from the connection.
+    while let Some(frame) = connection.read_frame().await.unwrap() {
+        let response = match Command::from_frame(frame).unwrap() {
+            Set(cmd) => {
+                // The value is stored as `Vec<u8>`
+                db.insert(cmd.key().to_string(), cmd.value().to_vec());
+                Frame::Simple("OK".to_string())
+            }
+            Get(cmd) => {
+                if let Some(value) = db.get(cmd.key()) {
+                    // `Frame::Bulk` expects data to be of type `Bytes`. This
+                    // type will be covered later in the tutorial. For now,
+                    // `&Vec<u8>` is converted to `Bytes` using `into()`.
+                    Frame::Bulk(value.clone().into())
+                } else {
+                    Frame::Null
+                }
+            }
+            cmd => panic!("unimplemented {:?}", cmd),
+        };
 
-    fn test_mat() {
-        let m = SMatrix::<f64, 2, 2>::default();
+        // Write the response to the client
+        connection.write_frame(&response).await.unwrap();
     }
 }
