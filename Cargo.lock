@@ -132,6 +132,7 @@ dependencies = [
 name = "experiments"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "carboxyl",
  "mini-redis",
  "nalgebra",
