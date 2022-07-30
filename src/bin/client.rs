@@ -32,7 +32,7 @@ async fn main() {
             resp: one_sender,
         };
         tx.send(cmd).await.unwrap();
-        let answer = one_receiver.await;
+        let answer = flat_result(one_receiver.await);
         println!("Got = {:?}", answer);
     });
 
@@ -82,7 +82,11 @@ where
     T: Into<BoxDyn>,
     G: Into<BoxDyn>,
 {
-    r.map(|inner| inner.map_err::<BoxDyn, _>(|err| err.into()))
-        .map_err::<BoxDyn, _>(|err| err.into())
-        .and_then(|r| r)
+    match r {
+        Err(x) => Err(x.into()),
+        Ok(x) => match x {
+            Err(x) => Err(x.into()),
+            Ok(x) => Ok(x),
+        },
+    }
 }
