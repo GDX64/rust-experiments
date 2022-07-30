@@ -77,16 +77,9 @@ async fn main() {
 }
 
 type BoxDyn = Box<dyn Error + Send + Sync>;
-fn flat_result<U, T, G>(r: Result<Result<U, G>, T>) -> Result<U, BoxDyn>
+fn flat_result<U, T, G>(r: Result<Result<U, T>, G>) -> Result<U, BoxDyn>
 where
-    T: Into<BoxDyn>,
-    G: Into<BoxDyn>,
+    BoxDyn: From<T> + From<G>,
 {
-    match r {
-        Err(x) => Err(x.into()),
-        Ok(x) => match x {
-            Err(x) => Err(x.into()),
-            Ok(x) => Ok(x),
-        },
-    }
+    Ok(r??)
 }
