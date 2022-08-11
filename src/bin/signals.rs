@@ -6,19 +6,38 @@ use std::task::{Context, Poll};
 #[tokio::main]
 async fn main() {}
 
-struct MStream<F, St>
+fn takes_stream(s: impl Stream<Item = i32>) {
+    s.map(|i| i + 1);
+}
+
+impl<T> SuperStream for T where T: Stream {}
+
+struct MStream<F, St, T>
 where
     St: Stream,
-    F: Fn(St::Item),
+    F: Fn(St::Item) -> T,
 {
     inner_stream: St,
     f_map: F,
 }
 
-impl<F, St> Stream for MStream<F, St>
+trait SuperStream: Stream {
+    fn map<F, T>(self, f: F) -> MStream<F, Self, T>
+    where
+        Self: Sized,
+        F: Fn(Self::Item) -> T + Unpin,
+    {
+        return MStream {
+            inner_stream: self,
+            f_map: f,
+        };
+    }
+}
+
+impl<F, St, T> Stream for MStream<F, St, T>
 where
     St: Stream + Unpin,
-    F: Fn(St::Item) + Unpin,
+    F: Fn(St::Item) -> T + Unpin,
 {
     type Item = F::Output;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
