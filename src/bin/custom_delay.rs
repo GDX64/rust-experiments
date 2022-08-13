@@ -12,6 +12,7 @@ where
 {
     stream: T,
     delay: Option<Pin<Box<dyn Future<Output = T::Item>>>>,
+    duration: Duration,
 }
 
 impl<T> Stream for MyDelay<T>
@@ -25,8 +26,9 @@ where
                 Poll::Pending => Poll::Pending,
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Ready(Some(x)) => {
+                    let timer = tokio::time::sleep(self.duration);
                     let delay_future = async move {
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        timer.await;
                         x
                     };
                     let mut pinned = Box::pin(delay_future);
@@ -53,27 +55,46 @@ where
 impl<T> DelayExt for T where T: Stream {}
 
 trait DelayExt: Stream {
-    fn my_delay(self) -> MyDelay<Self>
+    fn my_delay(self, duration: Duration) -> MyDelay<Self>
     where
         Self: Unpin + Sized,
     {
         MyDelay {
             delay: None,
             stream: self,
+            duration,
         }
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::time::{Duration, Instant};
+
     use futures::StreamExt;
     use tokio_stream;
 
     use crate::DelayExt;
     #[tokio::test]
     async fn test_delay() {
-        let st = tokio_stream::iter([1]).my_delay().collect::<Vec<_>>().await;
+        let duration = Duration::from_micros(1);
+        let st = tokio_stream::iter([1])
+            .my_delay(duration)
+            .collect::<Vec<_>>()
+            .await;
         assert_eq!(st, [1]);
+    }
+
+    #[tokio::test]
+    async fn test_delay_time() {
+        let now = Instant::now();
+        let duration = Duration::from_millis(500);
+        let st = tokio_stream::iter([1, 2, 3, 4])
+            .my_delay(duration)
+            .collect::<Vec<_>>()
+            .await;
+        assert_eq!(2, now.elapsed().as_secs());
+        assert_eq!(st, [1, 2, 3, 4]);
     }
 }
 
