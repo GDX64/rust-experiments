@@ -29,9 +29,14 @@ where
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         x
                     };
-                    let pinned = Box::pin(delay_future);
-                    self.delay = Some(pinned);
-                    Poll::Pending
+                    let mut pinned = Box::pin(delay_future);
+                    match pinned.as_mut().poll(cx) {
+                        Poll::Pending => {
+                            self.delay = Some(pinned);
+                            Poll::Pending
+                        }
+                        Poll::Ready(x) => Poll::Ready(Some(x)),
+                    }
                 }
             },
             Some(ref mut delay) => match delay.as_mut().poll(cx) {
@@ -45,10 +50,31 @@ where
     }
 }
 
+impl<T> DelayExt for T where T: Stream {}
+
+trait DelayExt: Stream {
+    fn my_delay(self) -> MyDelay<Self>
+    where
+        Self: Unpin + Sized,
+    {
+        MyDelay {
+            delay: None,
+            stream: self,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
+    use futures::StreamExt;
+    use tokio_stream;
+
+    use crate::DelayExt;
     #[tokio::test]
-    async fn test_delay() {}
+    async fn test_delay() {
+        let st = tokio_stream::iter([1]).my_delay().collect::<Vec<_>>().await;
+        assert_eq!(st, [1]);
+    }
 }
 
 fn main() {}
