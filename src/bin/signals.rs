@@ -1,14 +1,10 @@
-use futures::Stream;
 use std::borrow::BorrowMut;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tokio_stream::Stream;
 
 #[tokio::main]
 async fn main() {}
-
-fn takes_stream(s: impl Stream<Item = i32>) {
-    s.map(|i| i + 1);
-}
 
 impl<T> SuperStream for T where T: Stream {}
 
@@ -22,7 +18,7 @@ where
 }
 
 trait SuperStream: Stream {
-    fn map<F, T>(self, f: F) -> MStream<F, Self, T>
+    fn my_map<F, T>(self, f: F) -> MStream<F, Self, T>
     where
         Self: Sized,
         F: Fn(Self::Item) -> T + Unpin,
@@ -48,5 +44,19 @@ where
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use tokio_stream::StreamExt;
+
+    use crate::SuperStream;
+
+    #[tokio::test]
+    async fn test_map() {
+        let mapped = tokio_stream::iter([1, 2]).my_map(|v| v.to_string());
+        let v = mapped.collect::<Vec<_>>().await;
+        assert_eq!(v, vec!["1", "2"])
     }
 }
