@@ -1,10 +1,12 @@
 use std::borrow::BorrowMut;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio_stream::Stream;
+use tokio_stream::{Stream, StreamExt};
 
 #[tokio::main]
-async fn main() {}
+async fn main() {
+    bench_map().await;
+}
 
 impl<T> SuperStream for T where T: Stream {}
 
@@ -49,9 +51,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use tokio_stream::StreamExt;
-
     use crate::SuperStream;
+    use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn test_map() {
@@ -59,4 +60,29 @@ mod test {
         let v = mapped.collect::<Vec<_>>().await;
         assert_eq!(v, vec!["1", "2"])
     }
+}
+
+use experiments::bench;
+
+async fn bench_map() {
+    let f = || {
+        let value = tokio_stream::iter(0..10_000_000)
+            .my_map(|v: u64| v + 1)
+            .fold(0, |acc, v| acc + v);
+        return async {
+            println!("value {}", value.await);
+        };
+    };
+    let time = bench(f, 1).await;
+    println!("millis {}", time);
+    let f = || {
+        let value = tokio_stream::iter(0..10_000_000)
+            .map(|v: u64| v + 1)
+            .fold(0, |acc, v| acc + v);
+        return async {
+            println!("value {}", value.await);
+        };
+    };
+    let time = bench(f, 1).await;
+    println!("millis {}", time);
 }
