@@ -1,10 +1,9 @@
 use futures::Future;
 use std::borrow::BorrowMut;
 use std::pin::Pin;
-use std::process::Output;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio_stream::{Stream, StreamExt};
+use tokio_stream::Stream;
 
 struct MyDelay<T>
 where
